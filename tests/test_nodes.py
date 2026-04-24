@@ -103,7 +103,7 @@ class TestNodesCollect:
         assert stale_samples[0].value == 0.0
 
     def test_stale_threshold_uses_collect_interval(self):
-        # collect_interval=15 → threshold=60s. 방금 수집한 데이터는 stale이 아니어야 함
+        # collect_interval=15 -> threshold=60s. Freshly collected data should not be stale.
         coll = NodeClusterCollector(_BASE_CONFIG)
         data = coll._parse(SINFO_FIXTURE, GRES_FIXTURE, gpus_alloc=0, cfg=_BASE_CONFIG)
         coll._update(data)

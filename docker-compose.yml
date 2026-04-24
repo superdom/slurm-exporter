@@ -5,13 +5,13 @@ services:
     network_mode: host
     restart: unless-stopped
     volumes:
-      # SLURM 바이너리 (호스트에서 마운트 — 이미지에 SLURM 미설치)
+      # SLURM binaries mounted from the host; SLURM is not installed in the image.
       - /usr/bin/squeue:/usr/bin/squeue:ro
       - /usr/bin/sinfo:/usr/bin/sinfo:ro
       - /usr/bin/scontrol:/usr/bin/scontrol:ro
       - /usr/bin/sdiag:/usr/bin/sdiag:ro
       - /usr/bin/sacctmgr:/usr/bin/sacctmgr:ro
-      # SLURM 설정 및 Munge 인증
+      # SLURM configuration and Munge authentication.
       - /etc/slurm:/etc/slurm:ro
       - /run/munge:/run/munge:ro
       - /etc/munge:/etc/munge:ro
@@ -20,7 +20,7 @@ services:
       - "--log-level=info"
       - "--collect-interval=15"
       - "--medium-interval=300"
-    # SLURM 바이너리가 다른 경로에 있는 경우 CLI 플래그로 지정
+    # If SLURM binaries are in a different path, specify CLI flags.
     # command:
     #   - "--squeue-path=/usr/lib64/bin/squeue"
     #   - "--sinfo-path=/usr/lib64/bin/sinfo"

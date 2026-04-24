@@ -16,7 +16,7 @@ from slurm_exporter.utils import (
 
 log = logging.getLogger(__name__)
 
-# squeue 출력 필드 순서 (--state=ALL 단일 호출)
+# squeue output field order for a single --state=ALL call.
 # %i=JobID %j=Name %u=User %P=Partition %T=State %N=NodeList %D=NumNodes
 # %C=NumCPUs %b=GRES %a=Account %S=StartTime %V=SubmitTime %m=MinMemory %R=Reason
 _SQUEUE_FMT = "%i|%j|%u|%P|%T|%N|%D|%C|%b|%a|%S|%V|%m|%R"
@@ -24,14 +24,14 @@ _SQUEUE_FIELDS = 14
 
 
 class RunningJobsCollector(SlurmBaseCollector):
-    """squeue --state=ALL 단일 호출로 Job 및 집계 메트릭 수집."""
+    """Collect job and aggregate metrics with a single squeue --state=ALL call."""
 
     def __init__(self, config: Config) -> None:
         super().__init__("job")
         self._config = config
 
     # ------------------------------------------------------------------
-    # 수집
+    # Collection
     # ------------------------------------------------------------------
 
     def fetch(self) -> None:
@@ -79,7 +79,7 @@ class RunningJobsCollector(SlurmBaseCollector):
 
             state_upper = state.upper()
 
-            # --- GPU 수 ---
+            # --- GPU count ---
             if cfg.gpus_per_node > 0:
                 try:
                     gpu_count = int(num_nodes) * cfg.gpus_per_node
@@ -88,7 +88,7 @@ class RunningJobsCollector(SlurmBaseCollector):
             else:
                 gpu_count = parse_gres_gpu_count(gres)
 
-            # --- CPU / 메모리 ---
+            # --- CPU / memory ---
             try:
                 n_nodes = int(num_nodes)
                 n_cpus = int(num_cpus)
@@ -96,7 +96,7 @@ class RunningJobsCollector(SlurmBaseCollector):
                 n_nodes, n_cpus = 0, 0
             mem_bytes = parse_mem_to_bytes(min_mem, si=False)
 
-            # --- 시간 ---
+            # --- Time ---
             start_epoch = parse_epoch(start_time_str)
             submit_epoch = parse_epoch(submit_time_str)
             elapsed = 0
@@ -106,7 +106,7 @@ class RunningJobsCollector(SlurmBaseCollector):
                 if submit_epoch:
                     wait = max(0, start_epoch - submit_epoch)
 
-            # --- 집계 (모든 state) ---
+            # --- Aggregates for all states ---
             def _agg(d: dict, key: tuple) -> None:
                 if key not in d:
                     d[key] = {"count": 0, "cpu": 0, "mem_bytes": 0}
@@ -124,7 +124,7 @@ class RunningJobsCollector(SlurmBaseCollector):
                 r = reason.strip() or "Unknown"
                 pending_reasons[r] = pending_reasons.get(r, 0) + 1
 
-            # --- Running Job 개별 메트릭 ---
+            # --- Per-running-job metrics ---
             if state_upper == "RUNNING":
                 nodes = expand_nodelist(
                     nodelist,
@@ -156,7 +156,7 @@ class RunningJobsCollector(SlurmBaseCollector):
         }
 
     # ------------------------------------------------------------------
-    # 메트릭 노출
+    # Metric exposition
     # ------------------------------------------------------------------
 
     def collect(self) -> Iterator:
@@ -236,7 +236,7 @@ class RunningJobsCollector(SlurmBaseCollector):
         yield g_start
         yield g_wait
 
-        # --- 파티션 집계 (state별) ---
+        # --- Partition aggregates by state ---
         g_part_total = GaugeMetricFamily(
             "slurm_queue_jobs_running",
             "Number of running jobs per partition",
@@ -276,7 +276,7 @@ class RunningJobsCollector(SlurmBaseCollector):
         yield g_part_cpu
         yield g_part_mem
 
-        # --- 사용자 집계 ---
+        # --- User aggregates ---
         g_user_total = GaugeMetricFamily(
             "slurm_user_state_total",
             "Job count per user and state",
@@ -300,7 +300,7 @@ class RunningJobsCollector(SlurmBaseCollector):
         yield g_user_cpu
         yield g_user_mem
 
-        # --- 계정 집계 ---
+        # --- Account aggregates ---
         g_acct_total = GaugeMetricFamily(
             "slurm_account_job_state_total",
             "Job count per account and state",
@@ -324,7 +324,7 @@ class RunningJobsCollector(SlurmBaseCollector):
         yield g_acct_cpu
         yield g_acct_mem
 
-        # --- 대기 이유 ---
+        # --- Pending reasons ---
         g_reason = GaugeMetricFamily(
             "slurm_pending_reason_total",
             "Number of pending jobs per reason",

@@ -12,14 +12,14 @@ log = logging.getLogger(__name__)
 
 
 class DiagnosticsCollector(SlurmBaseCollector):
-    """sdiag --json 호출로 스케줄러 진단 메트릭 수집."""
+    """Collect scheduler diagnostics via sdiag --json."""
 
     def __init__(self, config: Config) -> None:
         super().__init__("diag")
         self._config = config
 
     # ------------------------------------------------------------------
-    # 수집
+    # Collection
     # ------------------------------------------------------------------
 
     def fetch(self) -> None:
@@ -30,10 +30,10 @@ class DiagnosticsCollector(SlurmBaseCollector):
         if out:
             data = self._parse_json(out)
         else:
-            # JSON 실패 시 텍스트 폴백 (스칼라 값만 추출)
+            # Fall back to text output when JSON collection fails.
             out_text = run_cmd([cfg.sdiag_path], timeout=30)
             if out_text is None:
-                # 텍스트 폴백도 실패 — 이전 스냅샷 유지
+                # Text fallback also failed; keep the previous snapshot.
                 self._record_error()
                 log.warning("sdiag both json and text calls failed; retaining previous metrics")
                 self._stop_timer(start)
@@ -58,7 +58,7 @@ class DiagnosticsCollector(SlurmBaseCollector):
 
         stats = raw.get("statistics", {})
 
-        # 스칼라 값
+        # Scalar values
         scalars = {
             "thread_count": coerce_int(stats.get("server_thread_count", 0)),
             "dbd_queue_size": coerce_int(stats.get("dbd_agent_queue_size", 0)),
@@ -68,7 +68,7 @@ class DiagnosticsCollector(SlurmBaseCollector):
             "bf_last_depth_try": coerce_int(stats.get("bf_last_depth_try", 0)),
         }
 
-        # RPC 메시지 타입별 통계
+        # RPC statistics by message type
         rpc_by_type = {}
         for entry in stats.get("rpcs_by_message_type", []):
             msg_type = entry.get("message_type", "unknown")
@@ -81,7 +81,7 @@ class DiagnosticsCollector(SlurmBaseCollector):
         return {"scalars": scalars, "rpc_by_type": rpc_by_type}
 
     def _parse_text(self, out: str) -> dict:
-        """sdiag 텍스트 출력에서 스칼라 값만 파싱 (JSON 미지원 환경 폴백)."""
+        """Parse scalar values from sdiag text output for non-JSON environments."""
         import re
         scalars = {
             "thread_count": 0, "dbd_queue_size": 0,
@@ -103,7 +103,7 @@ class DiagnosticsCollector(SlurmBaseCollector):
         return {"scalars": scalars, "rpc_by_type": {}}
 
     # ------------------------------------------------------------------
-    # 메트릭 노출
+    # Metric exposition
     # ------------------------------------------------------------------
 
     def collect(self) -> Iterator:

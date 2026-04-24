@@ -10,16 +10,16 @@ from slurm_exporter.utils import parse_gres_gpu_count, run_cmd
 
 log = logging.getLogger(__name__)
 
-# sinfo -O 필드 순서
+# sinfo -O field order.
 # StateCompact | Memory(MB) | NodeHost | CPUsLoad | Partition | FreeMem(MB) | CPUsState(A/I/O/T) | AllocMem(MB)
 _SINFO_FMT = (
     "StateCompact:12|,Memory:15|,NodeHost:30|,CPUsLoad:12|"
     ",Partition:15|,FreeMem:15|,CPUsState:15|,AllocMem:15"
 )
 _SINFO_FIELDS = 8
-_MB = 1_000_000  # Go exporter 방식: MB → bytes (SI)
+_MB = 1_000_000  # Go exporter behavior: MB -> bytes (SI).
 
-# mix/mixed 노드는 일부 CPU가 할당됨 → alloc으로 집계
+# mix/mixed nodes have some CPUs allocated, so count them as allocated.
 _STATE_ALLOC = {"alloc", "allocated", "mix", "mixed"}
 _STATE_IDLE = {"idle"}
 _STATE_DOWN = {"down"}
@@ -27,14 +27,14 @@ _STATE_DRAIN = {"drain", "draining", "drng"}
 
 
 class NodeClusterCollector(SlurmBaseCollector):
-    """sinfo -h -O 호출로 노드/파티션/클러스터 메트릭 수집."""
+    """Collect node, partition, and cluster metrics via sinfo -h -O."""
 
     def __init__(self, config: Config) -> None:
         super().__init__("node")
         self._config = config
 
     # ------------------------------------------------------------------
-    # 수집
+    # Collection
     # ------------------------------------------------------------------
 
     def fetch(self, gpus_alloc: int = 0) -> None:
@@ -48,8 +48,8 @@ class NodeClusterCollector(SlurmBaseCollector):
             self._stop_timer(start)
             return
 
-        # 하위 호환 메트릭(slurm_nodes_*, slurm_gpus_total)용 별도 호출
-        # -O Gres 필드는 SLURM 버전/설정에 따라 출력이 다를 수 있어 별도 유지
+        # Separate call for backward-compatible metrics: slurm_nodes_* and slurm_gpus_total.
+        # The -O Gres field can vary by SLURM version/configuration, so keep this path.
         gres_out = run_cmd([cfg.sinfo_path, "--noheader", "-o", "%n|%t|%G"])
 
         data = self._parse(out, gres_out or "", gpus_alloc, cfg)
@@ -101,7 +101,7 @@ class NodeClusterCollector(SlurmBaseCollector):
             except ValueError:
                 cpu_load = 0.0
 
-            # 파티션 집계
+            # Partition aggregation
             if partition not in partitions:
                 partitions[partition] = {
                     "total_cpus": 0, "idle_cpus": 0, "cpu_load": 0.0,
@@ -118,7 +118,7 @@ class NodeClusterCollector(SlurmBaseCollector):
             p["state_mem"][state] = p["state_mem"].get(state, 0) + mem_alloc
             p["state_nodes"][state] = p["state_nodes"].get(state, 0) + 1
 
-            # 클러스터 전체 (노드 중복 제거)
+            # Cluster totals with duplicate nodes removed.
             if node_host not in seen_nodes:
                 seen_nodes.add(node_host)
                 cluster["cpus_total"] += c_total
@@ -128,8 +128,8 @@ class NodeClusterCollector(SlurmBaseCollector):
                 cluster["mem_free"] += mem_free
                 cluster["mem_alloc"] += mem_alloc
 
-        # 하위 호환 단순 노드 상태 (slurm_nodes_*, slurm_gpus_total)
-        # mix/drng 포함 올바른 상태 집계
+        # Backward-compatible simple node states (slurm_nodes_*, slurm_gpus_total).
+        # Include mix/drng in the correct state buckets.
         simple = {"idle": 0, "alloc": 0, "down": 0, "drain": 0, "gpus_total": 0}
         for line in gres_out.strip().split("\n"):
             parts = line.strip().split("|")
@@ -161,7 +161,7 @@ class NodeClusterCollector(SlurmBaseCollector):
         }
 
     # ------------------------------------------------------------------
-    # 메트릭 노출
+    # Metric exposition
     # ------------------------------------------------------------------
 
     def collect(self) -> Iterator:
@@ -171,7 +171,7 @@ class NodeClusterCollector(SlurmBaseCollector):
         simple = data.get("simple", {})
         gpus_alloc = data.get("gpus_alloc", 0)
 
-        # 하위 호환 — 기존 메트릭 유지
+        # Backward-compatible existing metrics.
         yield self._scalar("slurm_nodes_idle", "Number of idle SLURM nodes", simple.get("idle", 0))
         yield self._scalar("slurm_nodes_alloc", "Number of allocated SLURM nodes", simple.get("alloc", 0))
         yield self._scalar("slurm_nodes_down", "Number of down SLURM nodes", simple.get("down", 0))
@@ -179,7 +179,7 @@ class NodeClusterCollector(SlurmBaseCollector):
         yield self._scalar("slurm_gpus_total", "Total GPUs in cluster", simple.get("gpus_total", 0))
         yield self._scalar("slurm_gpus_alloc", "Allocated GPUs", gpus_alloc)
 
-        # 클러스터 전체 CPU/메모리
+        # Cluster-wide CPU and memory metrics.
         yield self._scalar("slurm_cpus_total", "Total CPUs across all nodes", cluster.get("cpus_total", 0))
         yield self._scalar("slurm_cpus_idle", "Total idle CPUs across all nodes", cluster.get("cpus_idle", 0))
         yield self._scalar("slurm_cpu_load", "Total CPU load across all nodes", cluster.get("cpu_load", 0))
@@ -187,7 +187,7 @@ class NodeClusterCollector(SlurmBaseCollector):
         yield self._scalar("slurm_mem_free", "Total free memory in bytes", cluster.get("mem_free", 0))
         yield self._scalar("slurm_mem_alloc", "Total allocated memory in bytes", cluster.get("mem_alloc", 0))
 
-        # 파티션별 메트릭
+        # Per-partition metrics.
         g_ptotal = GaugeMetricFamily("slurm_partition_total_cpus", "Total CPUs per partition", labels=["partition"])
         g_pidle = GaugeMetricFamily("slurm_partition_idle_cpus", "Idle CPUs per partition", labels=["partition"])
         g_pload = GaugeMetricFamily("slurm_partition_cpu_load", "CPU load per partition", labels=["partition"])
@@ -219,7 +219,7 @@ class NodeClusterCollector(SlurmBaseCollector):
         yield g_pcpus_alloc
         yield g_pnodes
 
-        # sinfo 헬스 메트릭 — stale 기준: collect_interval × 4
+        # sinfo health metrics. Stale threshold is collect_interval * 4.
         last_ts = data.get("last_update_ts", 0.0)
         age = time.time() - last_ts if last_ts else float("inf")
         stale_threshold = self._config.collect_interval * 4

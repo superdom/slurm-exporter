@@ -11,13 +11,13 @@ from slurm_exporter.utils import run_cmd
 log = logging.getLogger(__name__)
 
 _SACCTMGR_FMT = "format=User,Account,GrpCPU,GrpMem,GrpJobs,GrpSubmit"
-_MB = 1_000_000  # GrpMem 단위 없음 = MB (SI)
+_MB = 1_000_000  # GrpMem without a unit is MB (SI).
 _MEM_LIMIT_RE = re.compile(r"^(\d+(?:\.\d+)?)([KMGT]?)$", re.IGNORECASE)
 _UNLIMITED_VALS = {"UNLIMITED", "INFINITE", "N/A", "-1", ""}
 
 
 def _parse_mem_limit(s: str) -> int:
-    """sacctmgr GrpMem 필드를 바이트로 변환. UNLIMITED/빈값은 0 반환."""
+    """Convert a sacctmgr GrpMem field to bytes. UNLIMITED/empty values return 0."""
     s = s.strip()
     if not s or s.upper() in _UNLIMITED_VALS:
         return 0
@@ -31,7 +31,7 @@ def _parse_mem_limit(s: str) -> int:
 
 
 def _safe_int(s: str) -> int:
-    """UNLIMITED/비어있는 문자열을 0으로 처리하는 정수 변환."""
+    """Convert integer fields, treating UNLIMITED/empty strings as 0."""
     s = s.strip()
     if not s or s.upper() in _UNLIMITED_VALS:
         return 0
@@ -42,14 +42,14 @@ def _safe_int(s: str) -> int:
 
 
 class AccountLimitCollector(SlurmBaseCollector):
-    """sacctmgr 호출로 계정 한도 메트릭 수집."""
+    """Collect account limit metrics via sacctmgr."""
 
     def __init__(self, config: Config) -> None:
         super().__init__("account")
         self._config = config
 
     # ------------------------------------------------------------------
-    # 수집
+    # Collection
     # ------------------------------------------------------------------
 
     def fetch(self) -> None:
@@ -73,15 +73,15 @@ class AccountLimitCollector(SlurmBaseCollector):
         self._stop_timer(start)
 
     def _parse(self, out: str) -> dict:
-        # user 필드가 비어있는 행이 계정 레벨 행
-        # 필드 순서: user|account|grp_cpu|grp_mem|grp_jobs|grp_submit
+        # Rows with an empty user field are account-level rows.
+        # Field order: user|account|grp_cpu|grp_mem|grp_jobs|grp_submit
         accounts: dict = {}
         for line in out.strip().split("\n"):
             parts = line.strip().split("|")
             if len(parts) < 6:
                 continue
             user, account, grp_cpu, grp_mem, grp_jobs, grp_submit = parts[:6]
-            if user:  # 사용자 레벨 행은 건너뜀
+            if user:  # Skip user-level rows.
                 continue
             if not account:
                 continue
@@ -96,7 +96,7 @@ class AccountLimitCollector(SlurmBaseCollector):
         return {"accounts": accounts}
 
     # ------------------------------------------------------------------
-    # 메트릭 노출
+    # Metric exposition
     # ------------------------------------------------------------------
 
     def collect(self) -> Iterator:
