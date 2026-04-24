@@ -1,0 +1,5 @@
+|root||||
+|ml-team|993|15917500|8000|60000
+|data-team|198|3183500||
+|empty-team||||
+shouldignore|ml-team|50|500000|10|100

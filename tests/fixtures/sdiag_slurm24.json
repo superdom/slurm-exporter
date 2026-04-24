@@ -1,0 +1,13 @@
+{
+    "statistics": {
+        "server_thread_count": {"set": true, "number": 4},
+        "dbd_agent_queue_size": {"set": true, "number": 2},
+        "bf_backfilled_jobs": {"set": true, "number": 100},
+        "bf_cycle_sum": {"set": true, "number": 10},
+        "bf_last_depth": {"set": true, "number": 50},
+        "bf_last_depth_try": {"set": true, "number": 30},
+        "rpcs_by_message_type": [
+            {"message_type": "REQUEST_JOB_INFO", "count": {"set": true, "number": 500}, "average_time": {"set": true, "number": 20}, "total_time": {"set": true, "number": 10000}}
+        ]
+    }
+}

@@ -1,0 +1,5 @@
+1001|training|alice|gpu|RUNNING|node01|1|8|gpu:a100:4(IDX:0-3)|ml-team|2026-04-24T08:00:00|2026-04-24T07:59:00|256G|None
+1002|inference|bob|cpu|RUNNING|node02|1|16|(null)|data-team|2026-04-24T09:00:00|2026-04-24T08:58:00|64G|None
+1003|preproc|charlie|gpu|PENDING|(null)|1|4|gpu:h100:sxm5:8(IDX:0-7)|ml-team|N/A|2026-04-24T10:00:00|32G|Resources
+1004|finetune|alice|gpu|PENDING|(null)|1|8|gpu:a100:4|ml-team|N/A|2026-04-24T10:01:00|512G|Priority
+1005|eval|bob|cpu|PENDING|(null)|1|2|(null)|data-team|N/A|2026-04-24T10:02:00|16G|Priority

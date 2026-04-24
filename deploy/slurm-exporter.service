@@ -1,0 +1,18 @@
+[Unit]
+Description=Prometheus SLURM Exporter
+After=slurmctld.service
+Wants=slurmctld.service
+
+[Service]
+User=slurm
+Group=slurm
+ExecStart=/usr/local/bin/slurm-exporter \
+    --port=9410 \
+    --log-level=info \
+    --collect-interval=15 \
+    --medium-interval=300
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
