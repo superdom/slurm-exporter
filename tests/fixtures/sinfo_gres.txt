@@ -1,4 +1,4 @@
-node01|alloc|gpu:a100:4
-node02|mix|(null)
-node03|idle|(null)
-node04|drain|(null)
+node01|alloc               |gpu:a100:4|gpu:a100:2(IDX:0-1)
+node02|mix                 |(null)|(null)
+node03|idle                |(null)|(null)
+node04|drain               |(null)|(null)

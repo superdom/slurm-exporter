@@ -6,7 +6,7 @@ from prometheus_client.core import GaugeMetricFamily
 
 from slurm_exporter.base import SlurmBaseCollector
 from slurm_exporter.config import Config
-from slurm_exporter.utils import parse_gres_gpu_count, run_cmd
+from slurm_exporter.utils import expand_nodelist, parse_gres_gpu_count, run_cmd
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +17,8 @@ _SINFO_FMT = (
     ",Partition:15|,FreeMem:15|,CPUsState:15|,AllocMem:15"
 )
 _SINFO_FIELDS = 8
+_SINFO_GRES_FMT = "NodeHost:80|,StateCompact:20|,Gres:240|,GresUsed:240"
+_SINFO_GRES_FIELDS = 4
 _MB = 1_000_000  # Go exporter behavior: MB -> bytes (SI).
 
 # mix/mixed nodes have some CPUs allocated, so count them as allocated.
@@ -24,6 +26,11 @@ _STATE_ALLOC = {"alloc", "allocated", "mix", "mixed"}
 _STATE_IDLE = {"idle"}
 _STATE_DOWN = {"down"}
 _STATE_DRAIN = {"drain", "draining", "drng"}
+_STATE_SUFFIXES = "*~#!%$@^-+"
+
+
+def _normalize_state(state: str) -> str:
+    return state.strip().lower().rstrip(_STATE_SUFFIXES)
 
 
 class NodeClusterCollector(SlurmBaseCollector):
@@ -48,9 +55,12 @@ class NodeClusterCollector(SlurmBaseCollector):
             self._stop_timer(start)
             return
 
-        # Separate call for backward-compatible metrics: slurm_nodes_* and slurm_gpus_total.
-        # The -O Gres field can vary by SLURM version/configuration, so keep this path.
-        gres_out = run_cmd([cfg.sinfo_path, "--noheader", "-o", "%n|%t|%G"])
+        # Separate call for backward-compatible metrics: slurm_nodes_* and slurm_gpus_*.
+        # GresUsed is available through -O and reports node-level GRES currently in use.
+        # Fall back to the legacy -o path on older SLURM builds that do not expose it.
+        gres_out = run_cmd([cfg.sinfo_path, "-N", "--noheader", "-O", _SINFO_GRES_FMT])
+        if gres_out is None:
+            gres_out = run_cmd([cfg.sinfo_path, "-N", "--noheader", "-o", "%n|%t|%G"])
 
         data = self._parse(out, gres_out or "", gpus_alloc, cfg)
         self._update(data)
@@ -72,7 +82,7 @@ class NodeClusterCollector(SlurmBaseCollector):
             state_raw, mem_raw, node_host, cpu_load_raw, partition, \
                 free_mem_raw, cpus_state_raw, alloc_mem_raw = fields[:_SINFO_FIELDS]
 
-            state = state_raw.lower().rstrip("*")
+            state = _normalize_state(state_raw)
             partition = partition.rstrip("*")
 
             # CPUsState: "16/48/0/64" → alloc/idle/other/total
@@ -131,32 +141,53 @@ class NodeClusterCollector(SlurmBaseCollector):
         # Backward-compatible simple node states (slurm_nodes_*, slurm_gpus_total).
         # Include mix/drng in the correct state buckets.
         simple = {"idle": 0, "alloc": 0, "down": 0, "drain": 0, "gpus_total": 0}
+        gpus_alloc_from_nodes = 0
+        saw_gres_used = False
+        seen_simple_nodes: set = set()
         for line in gres_out.strip().split("\n"):
-            parts = line.strip().split("|")
+            parts = [p.strip() for p in line.strip().split("|")]
             if len(parts) < 3:
                 continue
-            _, st, gres = parts[0], parts[1].lower().rstrip("*"), parts[2]
+            node_expr, st, gres = parts[0], _normalize_state(parts[1]), parts[2]
+            gres_used = parts[3] if len(parts) >= _SINFO_GRES_FIELDS else ""
 
-            if cfg.gpus_per_node > 0:
-                if "gpu" in gres.lower():
-                    simple["gpus_total"] += cfg.gpus_per_node
+            if any(ch in node_expr for ch in "[],"):
+                nodes = expand_nodelist(node_expr, scontrol_path=cfg.scontrol_path)
             else:
-                simple["gpus_total"] += parse_gres_gpu_count(gres)
+                nodes = [node_expr]
 
-            if st in _STATE_IDLE:
-                simple["idle"] += 1
-            elif st in _STATE_ALLOC:
-                simple["alloc"] += 1
-            elif st in _STATE_DOWN or st.startswith("down"):
-                simple["down"] += 1
-            elif st in _STATE_DRAIN:
-                simple["drain"] += 1
+            for node in nodes:
+                if node in seen_simple_nodes:
+                    continue
+                seen_simple_nodes.add(node)
+
+                if cfg.gpus_per_node > 0:
+                    if "gpu" in gres.lower():
+                        simple["gpus_total"] += cfg.gpus_per_node
+                else:
+                    simple["gpus_total"] += parse_gres_gpu_count(gres)
+
+                if gres_used and "gpu" in gres_used.lower():
+                    saw_gres_used = True
+                    gpus_alloc_from_nodes += parse_gres_gpu_count(gres_used)
+
+                if st in _STATE_IDLE:
+                    simple["idle"] += 1
+                elif st in _STATE_ALLOC:
+                    simple["alloc"] += 1
+                elif st in _STATE_DOWN or st.startswith("down"):
+                    simple["down"] += 1
+                elif st in _STATE_DRAIN:
+                    simple["drain"] += 1
+
+        if saw_gres_used:
+            simple["gpus_alloc"] = gpus_alloc_from_nodes
 
         return {
             "cluster": cluster,
             "partitions": partitions,
             "simple": simple,
-            "gpus_alloc": gpus_alloc,
+            "gpus_alloc": simple.get("gpus_alloc", gpus_alloc),
             "last_update_ts": time.time(),
         }
 

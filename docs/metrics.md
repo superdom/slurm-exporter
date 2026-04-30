@@ -58,7 +58,7 @@ all states contribute to aggregate metrics.
 
 ## Node/cluster metrics (fast loop, 15s)
 
-Collected via `sinfo -h -O ...` and `sinfo -o "%n|%t|%G"`.
+Collected via `sinfo -h -O ...` and node GRES/GresUsed output from `sinfo`.
 
 ### Cluster totals
 
@@ -69,7 +69,7 @@ Collected via `sinfo -h -O ...` and `sinfo -o "%n|%t|%G"`.
 | `slurm_nodes_down` | Gauge | — | Down node count |
 | `slurm_nodes_drain` | Gauge | — | Draining node count |
 | `slurm_gpus_total` | Gauge | — | Total GPUs in cluster |
-| `slurm_gpus_alloc` | Gauge | — | Allocated GPUs (from running jobs) |
+| `slurm_gpus_alloc` | Gauge | — | Allocated GPUs from node `GresUsed` when available; falls back to running-job GPU sum |
 | `slurm_cpus_total` | Gauge | — | Total CPUs across all nodes |
 | `slurm_cpus_idle` | Gauge | — | Total idle CPUs |
 | `slurm_cpu_load` | Gauge | — | Total CPU load |

@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 _nodelist_cache: Dict[str, Tuple[List[str], float]] = {}
 
 # GRES GPU parsing regex. Handles forms such as gpu:a100:sxm5:8(IDX:0-7).
-_GPU_GRES_RE = re.compile(r"^gpu(?::\w+)*:(\d+)", re.IGNORECASE)
+_GPU_GRES_RE = re.compile(r"^gpu(?::[^:,()]+)*:(\d+)", re.IGNORECASE)
 
 # Memory unit conversion for squeue %m: 1024-based MiB.
 _MEM_UNITS_BINARY = {"": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4,

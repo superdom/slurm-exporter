@@ -69,9 +69,29 @@ class TestNodesParse:
         # sinfo_gres.txt: node01 has gpu:a100:4
         assert data["simple"]["gpus_total"] == 4
 
-    def test_gpus_alloc_passthrough(self):
-        data = _parse(gpus_alloc=4)
+    def test_gpus_alloc_from_gres_used(self):
+        data = _parse(gpus_alloc=9)
+        # sinfo_gres.txt: node01 has two GPUs in use; node-level GresUsed wins.
+        assert data["gpus_alloc"] == 2
+
+    def test_gpus_alloc_falls_back_to_jobs_without_gres_used(self):
+        legacy_gres = "\n".join(line.rsplit("|", 1)[0] for line in GRES_FIXTURE.strip().split("\n"))
+        coll = NodeClusterCollector(_BASE_CONFIG)
+        data = coll._parse(SINFO_FIXTURE, legacy_gres, gpus_alloc=4, cfg=_BASE_CONFIG)
         assert data["gpus_alloc"] == 4
+
+    def test_simple_gres_deduplicates_node_partitions(self):
+        gres = GRES_FIXTURE + "node01|alloc|gpu:a100:4|gpu:a100:2(IDX:0-1)\n"
+        coll = NodeClusterCollector(_BASE_CONFIG)
+        data = coll._parse(SINFO_FIXTURE, gres, gpus_alloc=9, cfg=_BASE_CONFIG)
+        assert data["simple"]["gpus_total"] == 4
+        assert data["gpus_alloc"] == 2
+
+    def test_simple_node_state_strips_padding_and_flags(self):
+        gres = "node01|mix*                |gpu:a100:4|gpu:a100:2(IDX:0-1)\n"
+        coll = NodeClusterCollector(_BASE_CONFIG)
+        data = coll._parse(SINFO_FIXTURE, gres, gpus_alloc=0, cfg=_BASE_CONFIG)
+        assert data["simple"]["alloc"] == 1
 
     def test_last_update_ts_set(self):
         data = _parse()

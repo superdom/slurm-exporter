@@ -17,6 +17,9 @@ class TestParseGresGpuCount:
     def test_sxm5_with_idx(self):
         assert parse_gres_gpu_count("gpu:h100:sxm5:8(IDX:0-7)") == 8
 
+    def test_model_with_punctuation(self):
+        assert parse_gres_gpu_count("gpu:nvidia-a100-sxm4.40gb:8(IDX:0-7)") == 8
+
     def test_multi_gres(self):
         assert parse_gres_gpu_count("gpu:a100:2,gpu:h100:2") == 4
 
